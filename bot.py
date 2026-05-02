@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 
@@ -15,35 +15,38 @@ dp = Dispatcher()
 
 logging.basicConfig(level=logging.INFO)
 
-# user memory (last image)
+# memory (last image per user)
 user_data = {}
 
 
-# 🔥 APPLE STYLE IMAGE ENGINE (FIXED)
+# 🔥 PRO IMAGE ENGINE (APPLE STYLE + BLUR BACKGROUND)
 def make_squircle(image: Image.Image, value: int = 150):
     image = image.convert("RGBA")
 
     size = max(image.size)
 
-    # 📦 square canvas
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    # 📦 canvas
+    canvas = Image.new("RGBA", (size, size))
 
-    # 🔥 CENTER CROP + FILL (NO STRETCH)
-    ratio = max(size / image.width, size / image.height)
+    # 🌫 BACKGROUND (blur fill)
+    bg = ImageOps.fit(image, (size, size))
+    bg = bg.filter(ImageFilter.GaussianBlur(30))
+    canvas.paste(bg, (0, 0))
 
-    new_w = int(image.width * ratio)
-    new_h = int(image.height * ratio)
+    # 🎯 FOREGROUND (safe scale, no stretch)
+    scale = min((size * 0.75) / image.width, (size * 0.75) / image.height)
 
-    image = image.resize((new_w, new_h), Image.LANCZOS)
+    new_w = int(image.width * scale)
+    new_h = int(image.height * scale)
 
-    x = (new_w - size) // 2
-    y = (new_h - size) // 2
+    fg = image.resize((new_w, new_h), Image.LANCZOS)
 
-    image = image.crop((x, y, x + size, y + size))
+    x = (size - new_w) // 2
+    y = (size - new_h) // 2
 
-    canvas.paste(image, (0, 0))
+    canvas.paste(fg, (x, y), fg)
 
-    # 🔵 squircle strength
+    # 🔵 squircle radius control
     value = max(0, min(200, value))
     radius = int((value / 200) * (size // 2))
 
@@ -79,12 +82,12 @@ def get_keyboard():
 async def start(msg: Message):
     await msg.answer(
         "📸 Rasm yubor\n"
-        "Keyin shape tanla:\n"
+        "Shape tanla:\n"
         "🔵 100 | 🍎 150 | ⚪ 200"
     )
 
 
-# receive photo
+# photo handler
 @dp.message(F.photo)
 async def handle_photo(msg: Message):
     file = await bot.get_file(msg.photo[-1].file_id)
@@ -100,7 +103,7 @@ async def handle_photo(msg: Message):
     )
 
 
-# inline button handler
+# callback handler
 @dp.callback_query(F.data.startswith("shape_"))
 async def process_shape(call: types.CallbackQuery):
     value = int(call.data.split("_")[1])
