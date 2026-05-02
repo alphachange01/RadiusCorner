@@ -11,8 +11,7 @@ TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 bot = Bot(TOKEN)
 dp = Dispatcher()
 
-user_img = {}
-
+user_images = {}
 
 # ---------------- KEYBOARD ----------------
 def kb():
@@ -27,8 +26,7 @@ def kb():
         ]
     ])
 
-
-# ---------------- PHOTO ----------------
+# ---------------- IMAGE RECEIVER ----------------
 @dp.message(F.photo)
 async def photo(message: Message):
     photo = message.photo[-1]
@@ -38,63 +36,63 @@ async def photo(message: Message):
     path = "input.jpg"
     await bot.download_file(file.file_path, path)
 
-    user_img[message.from_user.id] = path
+    user_images[message.from_user.id] = path
 
     await message.answer("Radius tanla:", reply_markup=kb())
 
 
-# ---------------- PROCESS ----------------
-def process(path, r):
-    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+# ---------------- SQUIRCLE FUNCTION ----------------
+def squircle(img, r):
 
     h, w = img.shape[:2]
 
-    if img.shape[2] == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
-    scale = 0.85
-    nw, nh = int(w * scale), int(h * scale)
+    # no distortion resize
+    scale = min(w / img.shape[1], h / img.shape[0]) * 0.85
 
-    resized = cv2.resize(img, (nw, nh))
+    nw, nh = int(img.shape[1] * scale), int(img.shape[0] * scale)
+
+    resized = cv2.resize(img, (nw, nh), cv2.INTER_AREA)
 
     canvas = np.zeros((h, w, 4), dtype=np.uint8)
 
-    x, y = (w-nw)//2, (h-nh)//2
+    x = (w - nw) // 2
+    y = (h - nh) // 2
+
     canvas[y:y+nh, x:x+nw] = resized
 
-    # SQUIRCLE MASK (FIXED)
-    rect = np.zeros((h, w), dtype=np.uint8)
+    # REAL SQUIRCLE MASK
+    mask = np.ones((h, w), dtype=np.uint8) * 255
 
-    cv2.rectangle(rect, (r, r), (w-r, h-r), 255, -1)
-
-    cv2.circle(rect, (r, r), r, 255, -1)
-    cv2.circle(rect, (w-r, r), r, 255, -1)
-    cv2.circle(rect, (r, h-r), r, 255, -1)
-    cv2.circle(rect, (w-r, h-r), r, 255, -1)
-
-    mask = cv2.GaussianBlur(rect, (9, 9), 0)
+    cv2.circle(mask, (r, r), r, 0, -1)
+    cv2.circle(mask, (w-r, r), r, 0, -1)
+    cv2.circle(mask, (r, h-r), r, 0, -1)
+    cv2.circle(mask, (w-r, h-r), r, 0, -1)
 
     canvas[:, :, 3] = mask
 
-    out = "out.png"
-    cv2.imwrite(out, canvas)
-
-    return out
+    return canvas
 
 
 # ---------------- CALLBACK ----------------
 @dp.callback_query(F.data.startswith("r_"))
-async def cb(call: CallbackQuery):
+async def callback(call: CallbackQuery):
 
     r = int(call.data.split("_")[1])
 
-    path = user_img.get(call.from_user.id)
+    path = user_images.get(call.from_user.id)
 
     if not path:
         await call.message.answer("Rasm yo‘q")
         return
 
-    out = process(path, r)
+    img = cv2.imread(path)
+
+    result = squircle(img, r)
+
+    out = "output.png"
+    cv2.imwrite(out, result)
 
     await call.message.answer_photo(FSInputFile(out))
 
@@ -103,8 +101,7 @@ async def cb(call: CallbackQuery):
 
 # ---------------- START ----------------
 async def main():
-    print("BOT STARTED")
+    print("BOT STARTED 🚀")
     await dp.start_polling(bot)
-
 
 asyncio.run(main())
