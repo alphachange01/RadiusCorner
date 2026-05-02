@@ -6,6 +6,7 @@ def apply_radius(path, value):
 
     v = max(50, min(int(value), 200))
 
+    # radius mapping
     if v <= 70:
         radius = int(min(w, h) * 0.15)
     elif v <= 120:
@@ -15,15 +16,24 @@ def apply_radius(path, value):
     else:
         radius = int(min(w, h) * 0.5)
 
+    # 🔥 FIX 1: force clean layer
+    base = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    base.paste(img, (0, 0))
+
     mask = Image.new("L", (w, h), 0)
     draw = ImageDraw.Draw(mask)
 
-    draw.rounded_rectangle((0, 0, w, h), radius=radius, fill=255)
+    draw.rounded_rectangle(
+        (0, 0, w, h),
+        radius=radius,
+        fill=255
+    )
 
     mask = mask.filter(ImageFilter.GaussianBlur(2))
-    img.putalpha(mask)
+
+    base.putalpha(mask)
 
     out = path.replace(".png", f"_{value}.png")
-    img.save(out)
+    base.save(out)
 
     return out
