@@ -1,85 +1,53 @@
-import asyncio
 import os
-import logging
-
+import uuid
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import FSInputFile
+from aiogram.types import Message
+import asyncio
 
 from shape_engine import apply_radius
 
-# ---------------- LOGGING ----------------
-logging.basicConfig(level=logging.INFO)
-
-print("BOT STARTED 🚀")
-
-# ---------------- TOKEN ----------------
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise Exception("BOT_TOKEN topilmadi!")
+BOT_TOKEN = "YOUR_BOT_TOKEN"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-TEMP_DIR = "temp"
-os.makedirs(TEMP_DIR, exist_ok=True)
+user_files = {}
 
-user_images = {}
-
-
-# ---------------- START COMMAND ----------------
 @dp.message(Command("start"))
-async def start(message: types.Message):
-    await message.answer(
-        "👋 Bot ishlayapti!\n\n"
-        "📸 Rasm yubor\n"
-        "🔘 Keyin /50 /100 /150 /200 yoz"
-    )
+async def start(msg: Message):
+    await msg.answer("Rasm yubor. Keyin /50 /100 /150 /200 yozasan.")
 
-
-# ---------------- SAVE IMAGE ----------------
 @dp.message(lambda m: m.photo)
-async def handle_photo(message: types.Message):
-    file = await bot.get_file(message.photo[-1].file_id)
-    data = await bot.download_file(file.file_path)
+async def get_photo(msg: Message):
+    file_id = msg.photo[-1].file_id
+    file = await bot.get_file(file_id)
 
-    path = f"{TEMP_DIR}/{message.from_user.id}.png"
+    path = f"tmp/{uuid.uuid4()}.png"
+    os.makedirs("tmp", exist_ok=True)
 
-    with open(path, "wb") as f:
-        f.write(data.read())
+    await bot.download_file(file.file_path, path)
 
-    user_images[message.from_user.id] = path
+    user_files[msg.from_user.id] = path
 
-    await message.answer("✅ Rasm saqlandi. Endi /50 /100 /150 /200 yoz")
+    await msg.answer("Qabul qilindi. Endi /50 /100 /150 /200 yubor.")
 
+@dp.message(lambda m: m.text and m.text.startswith("/"))
+async def process(msg: Message):
+    if msg.from_user.id not in user_files:
+        return await msg.answer("Avval rasm yubor.")
 
-# ---------------- APPLY RADIUS ----------------
-@dp.message(Command("50", "100", "150", "200"))
-async def apply(message: types.Message):
-    uid = message.from_user.id
+    value = msg.text.replace("/", "")
 
-    if uid not in user_images:
-        await message.answer("❌ Avval rasm yubor")
-        return
+    try:
+        out = apply_radius(user_files[msg.from_user.id], value)
+    except Exception as e:
+        return await msg.answer(f"Xato: {e}")
 
-    value = int(message.text.replace("/", ""))
+    await msg.answer_photo(types.FSInputFile(out))
 
-    out = apply_radius(user_images[uid], value)
-
-    await message.answer_photo(FSInputFile(out))
-
-
-# ---------------- DEBUG MESSAGE ----------------
-@dp.message()
-async def fallback(message: types.Message):
-    logging.info(f"Unknown message: {message.text}")
-
-
-# ---------------- MAIN ----------------
 async def main():
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
