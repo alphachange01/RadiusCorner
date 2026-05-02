@@ -3,7 +3,7 @@ import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, FSInputFile
 
-TOKEN = "YOUR_TOKEN"
+TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
