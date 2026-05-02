@@ -8,25 +8,29 @@ def apply_radius(path, value):
 
     v = max(50, min(int(value), 200))
 
-    # radius mapping
-    if v <= 70:
-        radius = int(size * 0.15)
-    elif v <= 120:
-        radius = int(size * 0.3)
-    elif v <= 170:
-        radius = int(size * 0.42)
-    else:
-        radius = int(size * 0.5)
+    # 🔥 REAL CONTRAST MAPPING (MUHIM)
+    # 50 -> sharp square
+    # 100 -> mild round
+    # 150 -> strong round
+    # 200 -> almost circle
 
-    # 🔥 1. FORCE SQUARE CANVAS (MUHIM QISM)
+    if v == 50:
+        radius = 0
+    elif v <= 80:
+        radius = int(size * 0.08)
+    elif v <= 120:
+        radius = int(size * 0.18)
+    elif v <= 160:
+        radius = int(size * 0.32)
+    else:
+        radius = int(size * 0.48)
+
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    # center image
     x = (size - w) // 2
     y = (size - h) // 2
     canvas.paste(img, (x, y), img)
 
-    # 🔥 2. NEW MASK (REAL SHAPE CONTROL)
     mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
 
@@ -36,7 +40,7 @@ def apply_radius(path, value):
         fill=255
     )
 
-    mask = mask.filter(ImageFilter.GaussianBlur(1.5))
+    mask = mask.filter(ImageFilter.GaussianBlur(3))
 
     canvas.putalpha(mask)
 
