@@ -2,38 +2,45 @@ from PIL import Image, ImageDraw, ImageFilter
 
 def apply_radius(path, value):
     img = Image.open(path).convert("RGBA")
+
     w, h = img.size
+    size = max(w, h)
 
     v = max(50, min(int(value), 200))
 
     # radius mapping
     if v <= 70:
-        radius = int(min(w, h) * 0.15)
+        radius = int(size * 0.15)
     elif v <= 120:
-        radius = int(min(w, h) * 0.3)
+        radius = int(size * 0.3)
     elif v <= 170:
-        radius = int(min(w, h) * 0.42)
+        radius = int(size * 0.42)
     else:
-        radius = int(min(w, h) * 0.5)
+        radius = int(size * 0.5)
 
-    # 🔥 FIX 1: force clean layer
-    base = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    base.paste(img, (0, 0))
+    # 🔥 1. FORCE SQUARE CANVAS (MUHIM QISM)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    mask = Image.new("L", (w, h), 0)
+    # center image
+    x = (size - w) // 2
+    y = (size - h) // 2
+    canvas.paste(img, (x, y), img)
+
+    # 🔥 2. NEW MASK (REAL SHAPE CONTROL)
+    mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
 
     draw.rounded_rectangle(
-        (0, 0, w, h),
+        (0, 0, size, size),
         radius=radius,
         fill=255
     )
 
-    mask = mask.filter(ImageFilter.GaussianBlur(2))
+    mask = mask.filter(ImageFilter.GaussianBlur(1.5))
 
-    base.putalpha(mask)
+    canvas.putalpha(mask)
 
     out = path.replace(".png", f"_{value}.png")
-    base.save(out)
+    canvas.save(out)
 
     return out
