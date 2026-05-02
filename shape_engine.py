@@ -4,12 +4,20 @@ import cv2
 class ShapeEngine:
 
     @staticmethod
-    def squircle_mask(w, h):
+    def squircle_mask(w, h, radius=100):
         mask = np.zeros((h, w), dtype=np.uint8)
 
-        cv2.rectangle(mask, (10, 10), (w-10, h-10), 255, -1)
-        cv2.circle(mask, (w//2, h//2), min(w, h)//2 - 10, 255, -1)
+        r = max(1, min(radius, min(w, h)//2 - 5))
 
-        mask = cv2.GaussianBlur(mask, (9, 9), 0)
+        # rounded corners logic
+        rect = np.zeros((h, w), dtype=np.uint8)
+        cv2.rectangle(rect, (r, r), (w-r, h-r), 255, -1)
+
+        cv2.circle(rect, (r, r), r, 255, -1)
+        cv2.circle(rect, (w-r, r), r, 255, -1)
+        cv2.circle(rect, (r, h-r), r, 255, -1)
+        cv2.circle(rect, (w-r, h-r), r, 255, -1)
+
+        mask = cv2.GaussianBlur(rect, (7, 7), 0)
 
         return mask
