@@ -15,26 +15,28 @@ dp = Dispatcher()
 
 logging.basicConfig(level=logging.INFO)
 
-# memory (last image per user)
-user_data = {}
+# user memory
+user_data = {}  # image
+zoom_data = {}  # zoom level per user
 
 
-# 🔥 PRO IMAGE ENGINE (APPLE STYLE + BLUR BACKGROUND)
-def make_squircle(image: Image.Image, value: int = 150):
+# 🔥 IMAGE ENGINE (ZOOM CONTROLLED)
+def make_squircle(image: Image.Image, value: int = 150, zoom: float = 1.0):
     image = image.convert("RGBA")
 
     size = max(image.size)
 
-    # 📦 canvas
-    canvas = Image.new("RGBA", (size, size))
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    # 🌫 BACKGROUND (blur fill)
+    # 🌫 background (light blur)
     bg = ImageOps.fit(image, (size, size))
-    bg = bg.filter(ImageFilter.GaussianBlur(30))
+    bg = bg.filter(ImageFilter.GaussianBlur(12))
     canvas.paste(bg, (0, 0))
 
-    # 🎯 FOREGROUND (safe scale, no stretch)
-    scale = min((size * 0.75) / image.width, (size * 0.75) / image.height)
+    # 🎯 ZOOM CONTROL (THIS IS KEY PART)
+    base_scale = min((size * 0.7) / image.width, (size * 0.7) / image.height)
+
+    scale = base_scale * zoom
 
     new_w = int(image.width * scale)
     new_h = int(image.height * scale)
@@ -46,7 +48,7 @@ def make_squircle(image: Image.Image, value: int = 150):
 
     canvas.paste(fg, (x, y), fg)
 
-    # 🔵 squircle radius control
+    # 🔵 squircle
     value = max(0, min(200, value))
     radius = int((value / 200) * (size // 2))
 
@@ -65,29 +67,26 @@ def make_squircle(image: Image.Image, value: int = 150):
     return result
 
 
-# 🎛 INLINE BUTTONS
+# 🎛 BUTTONS (ZOOM + SHAPE)
 def get_keyboard():
     kb = InlineKeyboardBuilder()
+
+    kb.button(text="➖ Zoom -", callback_data="zoom_minus")
+    kb.button(text="➕ Zoom +", callback_data="zoom_plus")
 
     kb.button(text="🔵 100", callback_data="shape_100")
     kb.button(text="🍎 150", callback_data="shape_150")
     kb.button(text="⚪ 200", callback_data="shape_200")
 
-    kb.adjust(3)
+    kb.adjust(2, 3)
     return kb.as_markup()
 
 
-# /start
 @dp.message(Command("start"))
 async def start(msg: Message):
-    await msg.answer(
-        "📸 Rasm yubor\n"
-        "Shape tanla:\n"
-        "🔵 100 | 🍎 150 | ⚪ 200"
-    )
+    await msg.answer("📸 Rasm yubor, keyin zoom + / - va shape tanla")
 
 
-# photo handler
 @dp.message(F.photo)
 async def handle_photo(msg: Message):
     file = await bot.get_file(msg.photo[-1].file_id)
@@ -96,39 +95,55 @@ async def handle_photo(msg: Message):
     image = Image.open(file_data)
 
     user_data[msg.from_user.id] = image
+    zoom_data[msg.from_user.id] = 1.0  # default zoom
 
-    await msg.answer(
-        "Shape tanla 👇",
-        reply_markup=get_keyboard()
-    )
+    await msg.answer("Control panel 👇", reply_markup=get_keyboard())
 
 
-# callback handler
-@dp.callback_query(F.data.startswith("shape_"))
-async def process_shape(call: types.CallbackQuery):
-    value = int(call.data.split("_")[1])
+# 🎛 ZOOM + SHAPE HANDLER
+@dp.callback_query()
+async def callback(call: types.CallbackQuery):
+    user_id = call.from_user.id
 
-    image = user_data.get(call.from_user.id)
-
-    if not image:
+    if user_id not in user_data:
         await call.message.answer("Avval rasm yubor 😅")
         return
 
-    result = make_squircle(image, value)
+    image = user_data[user_id]
+    zoom = zoom_data.get(user_id, 1.0)
 
-    buffer = io.BytesIO()
-    result.save(buffer, format="PNG")
-    buffer.seek(0)
+    # ➖ zoom out
+    if call.data == "zoom_minus":
+        zoom = max(0.5, zoom - 0.1)
+        zoom_data[user_id] = zoom
+        await call.answer(f"Zoom: {zoom:.1f}")
+        return
 
-    await call.message.answer_photo(
-        BufferedInputFile(buffer.read(), filename="icon.png"),
-        caption=f"✨ Done | shape={value}"
-    )
+    # ➕ zoom in
+    if call.data == "zoom_plus":
+        zoom = min(2.0, zoom + 0.1)
+        zoom_data[user_id] = zoom
+        await call.answer(f"Zoom: {zoom:.1f}")
+        return
 
-    await call.answer()
+    # 🎨 shape render
+    if call.data.startswith("shape_"):
+        value = int(call.data.split("_")[1])
+
+        result = make_squircle(image, value, zoom)
+
+        buffer = io.BytesIO()
+        result.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        await call.message.answer_photo(
+            BufferedInputFile(buffer.read(), filename="icon.png"),
+            caption=f"✨ shape={value} | zoom={zoom:.1f}"
+        )
+
+        await call.answer()
 
 
-# run bot
 async def main():
     await dp.start_polling(bot)
 
