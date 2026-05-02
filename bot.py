@@ -7,7 +7,7 @@ import asyncio
 
 from shape_engine import apply_radius
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "8622632777:AAFIUcM63QDfMylL6KM8n7mEQ4TWbIVbEA0"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
