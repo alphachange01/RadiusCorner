@@ -5,18 +5,18 @@ from shape_engine import ShapeEngine
 class ImageProcessor:
 
     @staticmethod
-    def process(image_path, shape="squircle"):
+    def process(image_path):
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+
+        if img is None:
+            raise Exception("Image not loaded")
 
         h, w = img.shape[:2]
 
-        # alpha fix
         if img.shape[2] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
-        # -------------------------
-        # SAFE PADDING FIX
-        # -------------------------
+        # 🔥 SAFE ZOOM FIX (MUHIM)
         scale = 0.85
         new_w = int(w * scale)
         new_h = int(h * scale)
@@ -30,17 +30,11 @@ class ImageProcessor:
 
         canvas[y:y+new_h, x:x+new_w] = resized
 
-        # -------------------------
-        # MASK SELECTION
-        # -------------------------
-        if shape == "circle":
-            mask = ShapeEngine.circle_mask(w, h)
-        else:
-            mask = ShapeEngine.squircle_mask(w, h)
-
+        # mask
+        mask = ShapeEngine.squircle_mask(w, h)
         canvas[:, :, 3] = mask
 
-        output_path = "temp/output.png"
-        cv2.imwrite(output_path, canvas)
+        output = "temp/output.png"
+        cv2.imwrite(output, canvas)
 
-        return output_path
+        return output
