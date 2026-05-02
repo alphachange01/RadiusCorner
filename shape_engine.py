@@ -1,5 +1,5 @@
-import cv2
 import numpy as np
+import cv2
 
 class ShapeEngine:
 
@@ -7,15 +7,9 @@ class ShapeEngine:
     def squircle_mask(w, h):
         mask = np.zeros((h, w), dtype=np.uint8)
 
-        cv2.ellipse(
-            mask,
-            (w // 2, h // 2),
-            (w // 2 - 10, h // 2 - 10),
-            0,
-            0,
-            360,
-            255,
-            -1
-        )
+        cv2.rectangle(mask, (10, 10), (w-10, h-10), 255, -1)
+        cv2.circle(mask, (w//2, h//2), min(w, h)//2 - 10, 255, -1)
 
-        return cv2.GaussianBlur(mask, (7, 7), 0)
+        mask = cv2.GaussianBlur(mask, (9, 9), 0)
+
+        return mask
