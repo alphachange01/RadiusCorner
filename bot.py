@@ -1,12 +1,13 @@
 import asyncio
 import logging
+import io
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
 from PIL import Image, ImageDraw
-import io
 
-TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
+TOKEN = "T"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -16,27 +17,43 @@ logging.basicConfig(level=logging.INFO)
 
 def make_squircle(image: Image.Image, value: int = 150):
     image = image.convert("RGBA")
+
     w, h = image.size
+    size = max(w, h)
 
-    # normalize value (0-200)
+    # 🔥 FIX 1: kichik logolarni yo‘qotmaslik uchun upscale
+    min_target = int(size * 0.80)
+
+    if image.width < min_target or image.height < min_target:
+        scale = min_target / max(image.width, image.height)
+        image = image.resize(
+            (int(image.width * scale), int(image.height * scale)),
+            Image.LANCZOS
+        )
+
+    # 📦 square canvas
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+
+    # 🎯 center placement
+    x = (size - image.width) // 2
+    y = (size - image.height) // 2
+    canvas.paste(image, (x, y), image)
+
+    # 🔵 squircle / circle control
     value = max(0, min(200, value))
+    radius = int((value / 200) * (size // 2))
 
-    # radius calculation:
-    # 200 -> full circle
-    # 150 -> iPhone style squircle
-    radius = int((value / 200) * (min(w, h) // 2))
-
-    mask = Image.new("L", (w, h), 0)
+    mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
 
     draw.rounded_rectangle(
-        (0, 0, w, h),
+        (0, 0, size, size),
         radius=radius,
         fill=255
     )
 
-    result = Image.new("RGBA", (w, h))
-    result.paste(image, (0, 0), mask)
+    result = Image.new("RGBA", (size, size))
+    result.paste(canvas, (0, 0), mask)
 
     return result
 
@@ -44,34 +61,21 @@ def make_squircle(image: Image.Image, value: int = 150):
 @dp.message(Command("start"))
 async def start(msg: Message):
     await msg.answer(
-        "Rasm yubor va men uni squircle qilaman 😎\n"
-        "Yoki /shape 150 yoki 200 yoz"
+        "Rasm yubor 📸\n"
+        "150 → iPhone squircle 🍎\n"
+        "200 → full circle ⚪"
     )
-
-
-@dp.message(Command("shape"))
-async def shape_cmd(msg: Message):
-    try:
-        value = int(msg.text.split()[1])
-    except:
-        value = 150
-
-    await msg.answer(f"OK, shape value: {value}")
 
 
 @dp.message(F.photo)
 async def handle_photo(msg: Message):
-    # default shape
     value = 150
 
     if msg.caption:
-        try:
-            if "200" in msg.caption:
-                value = 200
-            elif "150" in msg.caption:
-                value = 150
-        except:
-            pass
+        if "200" in msg.caption:
+            value = 200
+        elif "150" in msg.caption:
+            value = 150
 
     file = await bot.get_file(msg.photo[-1].file_id)
     file_data = await bot.download_file(file.file_path)
@@ -85,7 +89,7 @@ async def handle_photo(msg: Message):
     buffer.seek(0)
 
     await msg.answer_photo(
-        BufferedInputFile(buffer.read(), filename="squircle.png"),
+        BufferedInputFile(buffer.read(), filename="result.png"),
         caption=f"Done ✨ shape={value}"
     )
 
