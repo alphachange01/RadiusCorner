@@ -1,35 +1,18 @@
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 def apply_radius(path, value):
     img = Image.open(path).convert("RGBA")
 
-    w, h = img.size
-    size = max(w, h)
-
+    size = max(img.size)
     v = max(50, min(int(value), 200))
 
-    # 🔥 REAL CONTRAST MAPPING (MUHIM)
-    # 50 -> sharp square
-    # 100 -> mild round
-    # 150 -> strong round
-    # 200 -> almost circle
-
-    if v == 50:
-        radius = 0
-    elif v <= 80:
-        radius = int(size * 0.08)
-    elif v <= 120:
-        radius = int(size * 0.18)
-    elif v <= 160:
-        radius = int(size * 0.32)
-    else:
-        radius = int(size * 0.48)
+    t = (v - 50) / 150
+    radius = int(size * (0.01 + 0.49 * t))
 
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    x = (size - w) // 2
-    y = (size - h) // 2
-    canvas.paste(img, (x, y), img)
+    img = img.resize((size, size))
+    canvas.paste(img, (0, 0))
 
     mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
@@ -39,8 +22,6 @@ def apply_radius(path, value):
         radius=radius,
         fill=255
     )
-
-    mask = mask.filter(ImageFilter.GaussianBlur(3))
 
     canvas.putalpha(mask)
 
