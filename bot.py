@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw
 
 TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 
@@ -15,27 +15,35 @@ dp = Dispatcher()
 
 logging.basicConfig(level=logging.INFO)
 
-
-# 💡 save last photo + value (simple memory)
+# user memory (last image)
 user_data = {}
 
 
+# 🔥 APPLE STYLE IMAGE ENGINE (FIXED)
 def make_squircle(image: Image.Image, value: int = 150):
     image = image.convert("RGBA")
 
     size = max(image.size)
 
-    # 📦 FIX 1: square canvas
+    # 📦 square canvas
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    # 🔥 FIX 2: NO STRETCH, ONLY PROPER FIT
-    fitted = ImageOps.contain(image, (size, size))
+    # 🔥 CENTER CROP + FILL (NO STRETCH)
+    ratio = max(size / image.width, size / image.height)
 
-    x = (size - fitted.width) // 2
-    y = (size - fitted.height) // 2
-    canvas.paste(fitted, (x, y), fitted)
+    new_w = int(image.width * ratio)
+    new_h = int(image.height * ratio)
 
-    # 🔵 squircle radius
+    image = image.resize((new_w, new_h), Image.LANCZOS)
+
+    x = (new_w - size) // 2
+    y = (new_h - size) // 2
+
+    image = image.crop((x, y, x + size, y + size))
+
+    canvas.paste(image, (0, 0))
+
+    # 🔵 squircle strength
     value = max(0, min(200, value))
     radius = int((value / 200) * (size // 2))
 
@@ -66,16 +74,17 @@ def get_keyboard():
     return kb.as_markup()
 
 
+# /start
 @dp.message(Command("start"))
 async def start(msg: Message):
     await msg.answer(
         "📸 Rasm yubor\n"
         "Keyin shape tanla:\n"
-        "100 / 150 / 200",
-        reply_markup=None
+        "🔵 100 | 🍎 150 | ⚪ 200"
     )
 
 
+# receive photo
 @dp.message(F.photo)
 async def handle_photo(msg: Message):
     file = await bot.get_file(msg.photo[-1].file_id)
@@ -91,6 +100,7 @@ async def handle_photo(msg: Message):
     )
 
 
+# inline button handler
 @dp.callback_query(F.data.startswith("shape_"))
 async def process_shape(call: types.CallbackQuery):
     value = int(call.data.split("_")[1])
@@ -108,13 +118,14 @@ async def process_shape(call: types.CallbackQuery):
     buffer.seek(0)
 
     await call.message.answer_photo(
-        BufferedInputFile(buffer.read(), filename="result.png"),
-        caption=f"Done ✨ shape={value}"
+        BufferedInputFile(buffer.read(), filename="icon.png"),
+        caption=f"✨ Done | shape={value}"
     )
 
     await call.answer()
 
 
+# run bot
 async def main():
     await dp.start_polling(bot)
 
