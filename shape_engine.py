@@ -1,31 +1,45 @@
-from PIL import Image, ImageDraw
+import cv2
+import numpy as np
+import os
 
 def apply_radius(path, value):
-    img = Image.open(path).convert("RGBA")
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
 
-    size = max(img.size)
+    if img is None:
+        raise ValueError("Image not found")
+
+    h, w = img.shape[:2]
+    size = max(w, h)
+
     v = max(50, min(int(value), 200))
+    t = (v - 50) / 150  # 0 → 1
 
-    t = (v - 50) / 150
-    radius = int(size * (0.01 + 0.49 * t))
+    radius = int((size // 2) * t)
 
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    # create square canvas
+    canvas = np.zeros((size, size, 4), dtype=np.uint8)
 
-    img = img.resize((size, size))
-    canvas.paste(img, (0, 0))
+    if img.shape[2] == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
-    mask = Image.new("L", (size, size), 0)
-    draw = ImageDraw.Draw(mask)
+    x = (size - w) // 2
+    y = (size - h) // 2
+    canvas[y:y+h, x:x+w] = img
 
-    draw.rounded_rectangle(
-        (0, 0, size, size),
-        radius=radius,
-        fill=255
-    )
+    # mask
+    mask = np.zeros((size, size), dtype=np.uint8)
 
-    canvas.putalpha(mask)
+    # base square
+    mask[:] = 255
+
+    # smooth corners (important part)
+    if radius > 0:
+        k = radius if radius % 2 == 1 else radius + 1
+        mask = cv2.GaussianBlur(mask, (k, k), 0)
+
+    result = cv2.bitwise_and(canvas, canvas, mask=mask)
 
     out = path.replace(".png", f"_{value}.png")
-    canvas.save(out)
+    cv2.imwrite(out, result)
 
     return out
