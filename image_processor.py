@@ -5,7 +5,7 @@ from shape_engine import ShapeEngine
 class ImageProcessor:
 
     @staticmethod
-    def process(image_path):
+    def process(image_path, radius=100):
 
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
 
@@ -14,11 +14,9 @@ class ImageProcessor:
 
         h, w = img.shape[:2]
 
-        # alpha fix
         if img.shape[2] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
-        # SAFE ZOOM (kesilmasin)
         scale = 0.85
         nw = int(w * scale)
         nh = int(h * scale)
@@ -32,8 +30,7 @@ class ImageProcessor:
 
         canvas[y:y+nh, x:x+nw] = resized
 
-        # SQUIRCLE MASK
-        mask = ShapeEngine.squircle_mask(w, h)
+        mask = ShapeEngine.squircle_mask(w, h, radius)
 
         canvas[:, :, 3] = mask
 
