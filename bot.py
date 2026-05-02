@@ -2,10 +2,11 @@ import asyncio
 import logging
 import io
 
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
-from PIL import Image, ImageDraw
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from PIL import Image, ImageDraw, ImageOps
 
 TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 
@@ -15,31 +16,26 @@ dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
 
+# 💡 save last photo + value (simple memory)
+user_data = {}
+
+
 def make_squircle(image: Image.Image, value: int = 150):
     image = image.convert("RGBA")
 
-    w, h = image.size
-    size = max(w, h)
+    size = max(image.size)
 
-    # 🔥 FIX 1: kichik logolarni yo‘qotmaslik uchun upscale
-    min_target = int(size * 0.80)
-
-    if image.width < min_target or image.height < min_target:
-        scale = min_target / max(image.width, image.height)
-        image = image.resize(
-            (int(image.width * scale), int(image.height * scale)),
-            Image.LANCZOS
-        )
-
-    # 📦 square canvas
+    # 📦 FIX 1: square canvas
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    # 🎯 center placement
-    x = (size - image.width) // 2
-    y = (size - image.height) // 2
-    canvas.paste(image, (x, y), image)
+    # 🔥 FIX 2: NO STRETCH, ONLY PROPER FIT
+    fitted = ImageOps.contain(image, (size, size))
 
-    # 🔵 squircle / circle control
+    x = (size - fitted.width) // 2
+    y = (size - fitted.height) // 2
+    canvas.paste(fitted, (x, y), fitted)
+
+    # 🔵 squircle radius
     value = max(0, min(200, value))
     radius = int((value / 200) * (size // 2))
 
@@ -58,29 +54,52 @@ def make_squircle(image: Image.Image, value: int = 150):
     return result
 
 
+# 🎛 INLINE BUTTONS
+def get_keyboard():
+    kb = InlineKeyboardBuilder()
+
+    kb.button(text="🔵 100", callback_data="shape_100")
+    kb.button(text="🍎 150", callback_data="shape_150")
+    kb.button(text="⚪ 200", callback_data="shape_200")
+
+    kb.adjust(3)
+    return kb.as_markup()
+
+
 @dp.message(Command("start"))
 async def start(msg: Message):
     await msg.answer(
-        "Rasm yubor 📸\n"
-        "150 → iPhone squircle 🍎\n"
-        "200 → full circle ⚪"
+        "📸 Rasm yubor\n"
+        "Keyin shape tanla:\n"
+        "100 / 150 / 200",
+        reply_markup=None
     )
 
 
 @dp.message(F.photo)
 async def handle_photo(msg: Message):
-    value = 150
-
-    if msg.caption:
-        if "200" in msg.caption:
-            value = 200
-        elif "150" in msg.caption:
-            value = 150
-
     file = await bot.get_file(msg.photo[-1].file_id)
     file_data = await bot.download_file(file.file_path)
 
     image = Image.open(file_data)
+
+    user_data[msg.from_user.id] = image
+
+    await msg.answer(
+        "Shape tanla 👇",
+        reply_markup=get_keyboard()
+    )
+
+
+@dp.callback_query(F.data.startswith("shape_"))
+async def process_shape(call: types.CallbackQuery):
+    value = int(call.data.split("_")[1])
+
+    image = user_data.get(call.from_user.id)
+
+    if not image:
+        await call.message.answer("Avval rasm yubor 😅")
+        return
 
     result = make_squircle(image, value)
 
@@ -88,10 +107,12 @@ async def handle_photo(msg: Message):
     result.save(buffer, format="PNG")
     buffer.seek(0)
 
-    await msg.answer_photo(
+    await call.message.answer_photo(
         BufferedInputFile(buffer.read(), filename="result.png"),
         caption=f"Done ✨ shape={value}"
     )
+
+    await call.answer()
 
 
 async def main():
