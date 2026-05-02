@@ -7,7 +7,7 @@ from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
 from PIL import Image, ImageDraw
 
-TOKEN = "T"
+TOKEN = "8543852141:AAEfp9wJiLvacB3drRYfiOOTP3zIIe3gTkA"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
